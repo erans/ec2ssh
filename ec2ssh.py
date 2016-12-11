@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 __version__ = "0.1"
 
@@ -13,51 +13,51 @@ except ImportError:
 	sys.exit(2)
 
 try:
+	import boto
 	import boto.ec2
-	from boto.ec2.connection import EC2Connection
 except ImportError:
 	print "ERROR: you must install boto. Try 'pip install boto' or 'easy_install boto'"
 	sys.exit(2)
 
 def get_instance_ip(args):
 	region = None
-	
+
 	regions = boto.ec2.regions()
 	for r in regions:
 		if r.name == args.region:
 			region = r
 			break
-			
+
 	if not region:
 		print "ERROR: Invalid region '%s'" % args.region
 		sys.exit(3)
-		
-	conn = EC2Connection(args.aws_access_key_id, args.aws_secret_access_key, region=region)
-	
+
+	conn = boto.ec2.connect_to_region(region.name, aws_access_key_id=args.aws_access_key_id, aws_secret_access_key=args.aws_secret_access_key)
+
 	instance = None
-	
+
 	reservations = conn.get_all_instances()
 	instances = [i for r in reservations for i in r.instances]
-	
+
 	for i in instances:
 		for t in i.tags:
 			if t == u"Name" and i.tags[t] == args.instance_name:
 				instance = i
 				break
-				
+
 	if not instance:
 		print "ERROR: Cannot find an instance in region: '%s' with name: '%s'" % (region.name, args.instance_name)
 		sys.exit(4)
-		
+
 	return instance.ip_address
 
 def run(args):
 	ip = get_instance_ip(args)
-	
+
 	print "Connecting to %s@%s" % (args.user, ip)
 	cmd_args = ["ssh", "-i", args.key_file, "%s@%s" % (args.user, ip)]
-	p = subprocess.call(cmd_args)	
-	
+	p = subprocess.call(cmd_args)
+
 def main():
 	parser = argparse.ArgumentParser(description='SSH into an EC2 instance via its Name tag')
 	parser.add_argument('instance_name', help='The instance name')
@@ -78,7 +78,7 @@ def main():
 		else:
 			args.aws_access_key_id = env_AWS_ACCESS_KEY_ID
 			args.aws_secret_access_key = env_AWS_SECRET_ACCESS_KEY
-	
+
 	if args.key_file is None:
 		env_EC2_INSTANCE_KEY_FILE = os.getenv("EC2_INSTANCE_KEY_FILE")
 		if not (env_EC2_INSTANCE_KEY_FILE):
@@ -86,10 +86,8 @@ def main():
 			sys.exit(2)
 		else:
 			args.key_file = env_EC2_INSTANCE_KEY_FILE
-	
+
 	run(args)
 
 if __name__ == "__main__":
 	main()
-
-
